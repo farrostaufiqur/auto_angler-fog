@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AutoAngler</string>
+    <string name="notif_channel_name">AutoAngler Service</string>
+    <string name="notif_title">AutoAngler Active</string>
+    <string name="notif_text">Overlay running. Tap to manage.</string>
+    <string name="accessibility_service_desc">AutoAngler — automatically injects taps on the game\'s arrow buttons (no-root mode)</string>
+</resources>
