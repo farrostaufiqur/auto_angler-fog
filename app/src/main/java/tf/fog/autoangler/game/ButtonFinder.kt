@@ -18,12 +18,8 @@ object ButtonFinder {
     fun findArrowButtons(frame: Bitmap): Pair<Point?, Point?> {
         val w = frame.width; val h = frame.height
         val yMin = (h * Config.arrowZoneYMinPct).toInt(); val yMax = (h * Config.arrowZoneYMaxPct).toInt()
-        // bandPx = seberapa lebar sekitar "kolom putih terpadat" yang dipakai utk centroid.
-        // Ikon panah ± lebar ini; noise putih menyebar (pantulan joran/riak air di kanan)
-        // di luar band → tak lagi menarik centroid ke tepi layar.
-        val bandPx = (w * 0.035).toInt().coerceAtLeast(12)
-        val left  = findWhitePeak(frame, (w * Config.leftZoneXMinPct).toInt(), (w * Config.leftZoneXMaxPct).toInt(), yMin, yMax, bandPx)
-        val right = findWhitePeak(frame, (w * Config.rightZoneXMinPct).toInt(), (w * Config.rightZoneXMaxPct).toInt(), yMin, yMax, bandPx)
+        val left  = findWhiteCluster(frame, (w * Config.leftZoneXMinPct).toInt(), (w * Config.leftZoneXMaxPct).toInt(), yMin, yMax)
+        val right = findWhiteCluster(frame, (w * Config.rightZoneXMinPct).toInt(), (w * Config.rightZoneXMaxPct).toInt(), yMin, yMax)
         // Hanya log saat ketemu sesuatu — dipanggil tiap frame CASTING, hindari banjir log
         if (left != null || right != null) Log.d(TAG, "Arrows: left=$left right=$right")
         return Pair(left, right)
@@ -71,102 +67,49 @@ object ButtonFinder {
 
     // ── Internal helpers ──────────────────────────────────────────────────────
 
-    // Semua helper baca per-BARIS (getPixels) — jauh lebih cepat dari getPixel per-piksel.
-
     // Centroid pixel putih (R>185, G>185, B>185) — ikon tombol
     private fun findWhiteCluster(
         frame: Bitmap, xMin: Int, xMax: Int, yMin: Int, yMax: Int, step: Int = 5
-    ): Point? = clusterCentroid(frame, xMin, xMax, yMin, yMax, step) { r, g, b ->
-        r > 185 && g > 185 && b > 185
+    ): Point? {
+        var sumX = 0L; var sumY = 0L; var count = 0
+        for (y in yMin until yMax step step) {
+            for (x in xMin until xMax step step) {
+                val p = frame.getPixel(x.coerceIn(0, frame.width - 1), y.coerceIn(0, frame.height - 1))
+                val r = (p shr 16) and 0xFF; val g = (p shr 8) and 0xFF; val b = p and 0xFF
+                if (r > 185 && g > 185 && b > 185) { sumX += x; sumY += y; count++ }
+            }
+        }
+        return if (count >= 8) Point((sumX / count).toInt(), (sumY / count).toInt()) else null
     }
 
     // Centroid pixel colorful (saturation tinggi) — bait item icon
     private fun findColorfulCluster(
         frame: Bitmap, xMin: Int, xMax: Int, yMin: Int, yMax: Int, step: Int = 7
-    ): Point? = clusterCentroid(frame, xMin, xMax, yMin, yMax, step) { r, g, b ->
-        val maxC = maxOf(r, g, b); val minC = minOf(r, g, b)
-        val sat = if (maxC > 30) (maxC - minC).toFloat() / maxC else 0f
-        sat > 0.35f && maxC > 100
+    ): Point? {
+        var sumX = 0L; var sumY = 0L; var count = 0
+        for (y in yMin until yMax step step) {
+            for (x in xMin until xMax step step) {
+                val p = frame.getPixel(x.coerceIn(0, frame.width - 1), y.coerceIn(0, frame.height - 1))
+                val r = (p shr 16) and 0xFF; val g = (p shr 8) and 0xFF; val b = p and 0xFF
+                val maxC = maxOf(r, g, b); val minC = minOf(r, g, b)
+                val sat = if (maxC > 30) (maxC - minC).toFloat() / maxC else 0f
+                if (sat > 0.35f && maxC > 100) { sumX += x; sumY += y; count++ }
+            }
+        }
+        return if (count >= 8) Point((sumX / count).toInt(), (sumY / count).toInt()) else null
     }
 
     // Centroid pixel sangat terang (brightness>200) — tombol putih Switch/Cancel
     private fun findBrightCluster(
         frame: Bitmap, xMin: Int, xMax: Int, yMin: Int, yMax: Int, step: Int = 7
-    ): Point? = clusterCentroid(frame, xMin, xMax, yMin, yMax, step) { r, g, b ->
-        (r + g + b) / 3 > 200
-    }
-
-    // Cari kolom putih TERPADAT dalam zona, lalu centroid HANYA di kolom ± bandPx dari
-    // puncak itu. Menolak noise putih yang menyebar (pantulan joran/air) yang di
-    // `clusterCentroid` biasa akan menarik titik tengah ke tepi layar.
-    private fun findWhitePeak(
-        frame: Bitmap, xMin: Int, xMax: Int, yMin: Int, yMax: Int, bandPx: Int, step: Int = 4
     ): Point? {
-        val w = frame.width; val h = frame.height
-        val lx = xMin.coerceIn(0, w - 1); val rx = xMax.coerceIn(lx + 1, w)
-        val ty = yMin.coerceIn(0, h - 1); val by = yMax.coerceIn(ty + 1, h)
-        val span = rx - lx
-        if (span < 4) return null
-        val row = IntArray(span)
-        val colCount = IntArray(span)
-        var total = 0
-        var y = ty
-        while (y < by) {
-            frame.getPixels(row, 0, span, lx, y, span, 1)
-            var i = 0
-            while (i < span) {
-                val p = row[i]
-                if (((p ushr 16) and 0xFF) > 185 && ((p ushr 8) and 0xFF) > 185 && (p and 0xFF) > 185) {
-                    colCount[i]++; total++
-                }
-                i += step
-            }
-            y += step
-        }
-        if (total < 8) return null
-        var peak = 0
-        for (i in colCount.indices) if (colCount[i] > colCount[peak]) peak = i
-        val loI = (peak - bandPx).coerceAtLeast(0)
-        val hiI = (peak + bandPx).coerceAtMost(span - 1)
         var sumX = 0L; var sumY = 0L; var count = 0
-        y = ty
-        while (y < by) {
-            frame.getPixels(row, 0, span, lx, y, span, 1)
-            var i = loI
-            while (i <= hiI) {
-                val p = row[i]
-                if (((p ushr 16) and 0xFF) > 185 && ((p ushr 8) and 0xFF) > 185 && (p and 0xFF) > 185) {
-                    sumX += lx + i; sumY += y; count++
-                }
-                i += step
+        for (y in yMin until yMax step step) {
+            for (x in xMin until xMax step step) {
+                val p = frame.getPixel(x.coerceIn(0, frame.width - 1), y.coerceIn(0, frame.height - 1))
+                val brightness = ((p shr 16 and 0xFF) + (p shr 8 and 0xFF) + (p and 0xFF)) / 3
+                if (brightness > 200) { sumX += x; sumY += y; count++ }
             }
-            y += step
-        }
-        return if (count >= 8) Point((sumX / count).toInt(), (sumY / count).toInt()) else null
-    }
-
-    private inline fun clusterCentroid(
-        frame: Bitmap, xMin: Int, xMax: Int, yMin: Int, yMax: Int, step: Int,
-        match: (r: Int, g: Int, b: Int) -> Boolean
-    ): Point? {
-        val w = frame.width; val h = frame.height
-        val lx = xMin.coerceIn(0, w - 1); val rx = xMax.coerceIn(lx + 1, w)
-        val ty = yMin.coerceIn(0, h - 1); val by = yMax.coerceIn(ty + 1, h)
-        val span = rx - lx
-        val row = IntArray(span)
-        var sumX = 0L; var sumY = 0L; var count = 0
-        var y = ty
-        while (y < by) {
-            frame.getPixels(row, 0, span, lx, y, span, 1)
-            var i = 0
-            while (i < span) {
-                val p = row[i]
-                if (match((p ushr 16) and 0xFF, (p ushr 8) and 0xFF, p and 0xFF)) {
-                    sumX += lx + i; sumY += y; count++
-                }
-                i += step
-            }
-            y += step
         }
         return if (count >= 8) Point((sumX / count).toInt(), (sumY / count).toInt()) else null
     }

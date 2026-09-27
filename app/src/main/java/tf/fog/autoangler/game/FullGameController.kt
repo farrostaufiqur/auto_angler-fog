@@ -42,9 +42,6 @@ class FullGameController(
     private var barController: BotController? = null
     private var frameCount = 0L
     private var fpsStart = System.currentTimeMillis()
-    private var prevVision = VisionResult()
-    private var lastCastMs = 0L
-    private var castDetected = false
 
     private companion object { const val TAG = "FullGameController" }
 
@@ -62,14 +59,12 @@ class FullGameController(
                 Rect(0, 0, layout.screenW, (layout.screenH * 0.20).toInt())
 
             val roiBmp = crop(fullFrame, roi)
-            val track = if (layout.barRight > layout.barLeft) layout.barLeft..layout.barRight else null
-            val vision = if (roiBmp != null) VisionProcessor.process(roiBmp, prevVision, track) else VisionResult()
+            val vision = if (roiBmp != null) VisionProcessor.process(roiBmp) else VisionResult()
             roiBmp?.recycle()
-            prevVision = if (vision.valid) vision else VisionResult()
 
             // ── Deteksi state ─────────────────────────────────────────────────
             var rawState = if (vision.valid) GameState.FISHING
-                           else StateDetector.detect(fullFrame, layout)
+                           else StateDetector.detect(fullFrame)
 
             // Fallback CASTING→FISHING: cek tombol << >> (cluster piksel putih) di layar
             if (rawState == GameState.IDLE && currentState == GameState.CASTING) {
@@ -81,43 +76,15 @@ class FullGameController(
                 if (!arrowsDetected) recordArrowSighting(l, r)
             }
 
-            // Auto-detect ROI + track bar saat FISHING pertama kali
+            // Auto-detect ROI saat FISHING pertama kali
             if (rawState == GameState.FISHING && !roiFound) {
                 val found = AutoCalibrator.findFishingBarRoi(fullFrame, layout.screenW, layout.screenH)
                 if (found != null) {
-                    layout = layout.copy(
-                        roiTop = found.top, roiBottom = found.bottom,
-                        barLeft = found.left, barRight = found.right,
-                    )
+                    layout = layout.copy(roiTop = found.top, roiBottom = found.bottom)
                     roiFound = true
-                    prevVision = VisionResult()
                     onLayoutUpdated(layout)
-                    Log.d(TAG, "ROI: top=${found.top} bottom=${found.bottom} track=[${found.left}..${found.right}]")
+                    Log.d(TAG, "ROI: top=${found.top} bottom=${found.bottom}")
                 }
-            }
-
-            // Auto-detect tombol cast (4 tombol aksi kanan-bawah) — sekali, saat IDLE.
-            if (Config.autoDetectCast && !castDetected && currentState == GameState.IDLE) {
-                val btns = ButtonFinder.findBottomButtons(fullFrame)
-                if (btns.size >= 3) {
-                    val cast = btns.last()
-                    // sanity: harus di kanan-bawah
-                    if (cast.x > layout.screenW * 0.55 && cast.y > layout.screenH * 0.55) {
-                        layout = layout.copy(castX = cast.x, castY = cast.y, reelX = cast.x, reelY = cast.y)
-                        castDetected = true
-                        onLayoutUpdated(layout)
-                        Log.d(TAG, "Cast button locked via detection: $cast")
-                    }
-                }
-            }
-
-            // HOOKED hanya sah sebagai transisi dari CASTING / IDLE — game menampilkan
-            // banner "reel it!" tepat setelah umpan disambar. Dari FISHING, kehilangan bar
-            // sesaat (kursor keluar frame, motion blur) BUKAN HOOKED — dulu memicu
-            // FISHING→HOOKED / CASTING→HOOKED beruntun & reel-tap ngawur.
-            if (rawState == GameState.HOOKED &&
-                currentState != GameState.CASTING && currentState != GameState.IDLE) {
-                rawState = currentState
             }
 
             // ── Debounce ─────────────────────────────────────────────────────
@@ -173,20 +140,12 @@ class FullGameController(
 
                 GameState.IDLE -> {
                     delay(300)
-                    val now = System.currentTimeMillis()
-                    // Anti spam re-cast: kalau baru saja cast (frame mungkin masih basi),
-                    // tunggu sebelum tap lagi — bukan tap tiap ~0.7s.
-                    if (now - lastCastMs < Config.recastMinGapMs) {
-                        delay(Config.loopMs)
-                    } else {
-                        Log.d(TAG, "Cast: (${layout.castX},${layout.castY})")
-                        injector.tap(layout.castX, layout.castY, Config.tapHoldMs)
-                        lastCastMs = now
-                        delay(300)
-                        currentState = GameState.CASTING
-                        castingStartMs = System.currentTimeMillis()
-                        debounceCount = 0; pendingState = GameState.CASTING
-                    }
+                    Log.d(TAG, "Cast: (${layout.castX},${layout.castY})")
+                    injector.tap(layout.castX, layout.castY, Config.tapHoldMs)
+                    delay(300)
+                    currentState = GameState.CASTING
+                    castingStartMs = System.currentTimeMillis()
+                    debounceCount = 0; pendingState = GameState.CASTING
                 }
 
                 GameState.CASTING -> {
@@ -252,7 +211,6 @@ class FullGameController(
                     injector.tap(tx, ty, Config.tapHoldMs)
                     delay(600)
                     currentState = GameState.IDLE
-                    lastCastMs = 0L            // siklus baru sah → boleh cast langsung
                     debounceCount = 0; pendingState = GameState.IDLE
                 }
             }
@@ -321,6 +279,5 @@ class FullGameController(
         debounceCount = 0; pendingState = GameState.IDLE
         roiFound = false; arrowsDetected = false
         seenLeft = null; seenRight = null
-        prevVision = VisionResult(); lastCastMs = 0L; castDetected = false
     }
 }

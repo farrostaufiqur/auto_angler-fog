@@ -43,15 +43,11 @@ class BotController(
         barMissingStart = 0L; barMissingSec = 0f
 
         val center = (result.greenLeft + result.greenRight) / 2
-        // Deadzone RELATIF lebar zona (min. deadzonePx absolut): begitu kursor sudah di
-        // ~tengah zona, berhenti — cegah osilasi kiri-kanan tak henti di zona lebar.
-        val zoneHalf = (result.greenRight - result.greenLeft) / 2
-        val deadzone = maxOf(Config.deadzonePx, (Config.deadzoneZoneFrac * zoneHalf).toInt())
 
         state = when {
             result.yellowX < result.greenLeft  -> BotState.PUSH_RIGHT
             result.yellowX > result.greenRight -> BotState.PUSH_LEFT
-            abs(result.yellowX - center) <= deadzone -> BotState.IDLE
+            abs(result.yellowX - center) <= Config.deadzonePx -> BotState.IDLE
             result.yellowX < center -> BotState.PUSH_RIGHT
             else                    -> BotState.PUSH_LEFT
         }

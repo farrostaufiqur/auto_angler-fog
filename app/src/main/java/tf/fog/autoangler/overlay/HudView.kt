@@ -155,9 +155,8 @@ class HudView(
             }
             tvState.setTextColor(color); tvState.text = label
             tvFps.text = "FPS: ${"%.1f".format(fps)}"
-            tvBar.text = if (vr.valid)
-                "Y=${vr.yellowX} G=[${vr.greenLeft}..${vr.greenRight}] w=${vr.greenRight - vr.greenLeft}"
-            else "bar: -"
+            tvBar.text = if (vr.valid) "Y=${vr.yellowX} G=[${vr.greenLeft}..${vr.greenRight}]"
+                         else "bar: -"
         }
     }
 

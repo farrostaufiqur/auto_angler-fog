@@ -19,8 +19,5 @@ data class ButtonLayout(
     val leftArrowMovesRight: Boolean = false,
     // ROI bar fishing (diisi otomatis saat bar terdeteksi pertama kali)
     val roiTop: Int = 0, val roiBottom: Int = 0,
-    // Rentang x "track" bar (antara dua lingkaran ujung) — jendela pencarian vision
-    // supaya piksel hijau/kuning scenery di luar bar tak ikut terhitung.
-    val barLeft: Int = 0, val barRight: Int = 0,
     val screenW: Int, val screenH: Int
 )

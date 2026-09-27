@@ -34,15 +34,9 @@ object Config {
     // durasi, jadi durasi tap proporsional itu dulu cuma beban komputasi tanpa efek nyata)
     var marginPx: Int = 8
     var deadzonePx: Int = 12
-    // Deadzone RELATIF lebar zona: IDLE kalau kursor di dalam ~fraksi tengah zona ini.
-    // (deadzonePx tetap jadi batas MINIMUM absolut.) Menghilangkan osilasi kiri-kanan
-    // saat kursor sudah "cukup di tengah" zona lebar.
-    var deadzoneZoneFrac: Double = 0.34
     var interPulseMs: Long = 10L       // delay saat luar zona: cepat kejar
     var interPulseInZoneMs: Long = 30L // delay saat dalam zona: cegah queue + overshoot
     var autoStopBarMissingMs: Long = 3000L
-    // Jeda minimum antar tap "Cast" saat IDLE — cegah spam re-cast kalau frame basi.
-    var recastMinGapMs: Long = 2500L
 
     // Durasi tekan-tahan tap (ms) — dipakai eksplisit di titik pemanggilan injector.tap()
     // utk KEDUA mode (satu variabel, satu tempat ubah). Root (`input tap`) TAK PUNYA
@@ -71,51 +65,15 @@ object Config {
 
     var greenHMin: Float = 150f
     var greenHMax: Float = 182f
-    var greenSMin: Float = 0.55f
+    var greenSMin: Float = 0.50f
     var greenVMin: Float = 0.60f
-
-    // --- Deteksi zona hijau tahan-noise (VisionProcessor) ---
-    // Zona = RUN kontigu piksel hijau (bukan min/max semua piksel). Piksel hijau scenery
-    // yang TERPISAH dari run utama diabaikan → greenRight tidak lagi ketarik ke ujung layar.
-    var greenRunGapPx: Int = 12          // celah <= ini masih dianggap satu run
-    var zoneMinPx: Int = 24              // run lebih sempit dari ini = noise
-    var zoneMaxPct: Double = 0.45        // run lebih lebar dari (ini * lebar track) = noise
-    var zoneTrackWindowPct: Double = 0.45 // cari zona hanya di prev ± (ini * lebar track)
-    // --- Deteksi kursor kuning tahan-noise ---
-    var cursorMaxWidthPx: Int = 30       // gugus kuning lebih lebar = bukan kursor
-    var cursorJumpMaxPct: Double = 0.20  // clamp: kursor tak lompat > (ini * lebar track)/frame
-    var cursorSearchPct: Double = 0.45   // cari kursor hanya di zona hijau ± (ini * lebar track)
-    // Kursor = garis kuning VERTIKAL padat. Kolom kuning yang kurang dari fraksi tinggi
-    // pita-scan ini = noise (arc ring Stamina, gradasi isi bar) → ditolak.
-    var cursorMinDensityFrac: Double = 0.55
-    var trackEndMarginPct: Double = 0.07 // abaikan fraksi ujung track (ring lingkaran Stamina/Line)
-
-    // --- ROI bar & track (AutoCalibrator) ---
-    var roiBandPct: Double = 0.032       // tinggi pita ROI = fraksi tinggi layar
-    var roiFindMaxSpanPct: Double = 0.32 // baris "bar" ditolak kalau span kuning+hijau > ini
-    var barTrackLeftPct: Double = 0.28   // batas kiri track bar default (% layar)
-    var barTrackRightPct: Double = 0.66  // batas kanan track bar default
-
-    // --- Deteksi HOOKED (banner "Fish on the hook") ---
-    var hookedYPct: Double = 0.48        // pusat pita banner (tunable per game/map)
-    var hookedBandPct: Double = 0.05     // ± tinggi pencarian
-    // --- Deteksi RESULT (popup hasil di tengah) ---
-    var resultCenterVMin: Float = 0.72f  // ambang "terang" grid tengah
-    var resultCenterFrac: Double = 0.42  // fraksi sampel grid tengah yang harus terang
-    var resultDockVMin: Float = 0.55f    // area dock cast juga harus seterang ini (ketutup panel)
-
-    // --- Auto-kalibrasi koordinat (FullGameController) ---
-    var autoDetectArrows: Boolean = true
-    // Default OFF: deteksi 4-tombol dock sering meleset (cuma 1 tombol kebaca di posisi
-    // salah) & default castX/Y sudah presisi. Nyalakan manual kalau perlu di device lain.
-    var autoDetectCast: Boolean = false
 
     // --- Posisi tombol default, % layar 0.0-1.0 (AutoCalibrator) ---
     var castXPct: Double = 0.883
     var castYPct: Double = 0.875
     var leftArrowXPct: Double = 0.1458
     var leftArrowYPct: Double = 0.786
-    var rightArrowXPct: Double = 0.800   // diperbaiki dari 0.860 (tombol > sebenarnya di ~80%)
+    var rightArrowXPct: Double = 0.860
     var rightArrowYPct: Double = 0.789
 
     // --- Zona scan panah utk auto-deteksi, % layar (ButtonFinder) ---
@@ -161,15 +119,6 @@ object Config {
                 if (applyValue(key, value)) applied++
             }
             Log.d("Config", "bot_config.txt dimuat: $applied nilai diterapkan (${file.absolutePath})")
-            // Tulis ulang: nilai hasil-muat dipertahankan (defaultFileContents meng-interpolasi
-            // var yang barusan di-set), TAPI key & komentar baru dari APK versi ini ikut
-            // ditambahkan dan key usang dibuang → file di device tak pernah basi setelah
-            // update APK (dulu file lama tak pernah diperbarui → default baru tak kepakai).
-            try {
-                file.writeText(defaultFileContents())
-            } catch (e: Exception) {
-                Log.w("Config", "Gagal tulis ulang bot_config.txt", e)
-            }
         } catch (e: Exception) {
             Log.e("Config", "Gagal baca bot_config.txt, pakai default", e)
         }
@@ -216,28 +165,6 @@ object Config {
             "arrowSaneMinGapPct" -> arrowSaneMinGapPct = value.toDoubleOrNull() ?: return invalid(key, value)
             "arrowSaneYMinPct" -> arrowSaneYMinPct = value.toDoubleOrNull() ?: return invalid(key, value)
             "arrowSaneYMaxPct" -> arrowSaneYMaxPct = value.toDoubleOrNull() ?: return invalid(key, value)
-            "deadzoneZoneFrac" -> deadzoneZoneFrac = value.toDoubleOrNull() ?: return invalid(key, value)
-            "recastMinGapMs" -> recastMinGapMs = value.toLongOrNull() ?: return invalid(key, value)
-            "greenRunGapPx" -> greenRunGapPx = value.toIntOrNull() ?: return invalid(key, value)
-            "zoneMinPx" -> zoneMinPx = value.toIntOrNull() ?: return invalid(key, value)
-            "zoneMaxPct" -> zoneMaxPct = value.toDoubleOrNull() ?: return invalid(key, value)
-            "zoneTrackWindowPct" -> zoneTrackWindowPct = value.toDoubleOrNull() ?: return invalid(key, value)
-            "cursorMaxWidthPx" -> cursorMaxWidthPx = value.toIntOrNull() ?: return invalid(key, value)
-            "cursorJumpMaxPct" -> cursorJumpMaxPct = value.toDoubleOrNull() ?: return invalid(key, value)
-            "cursorSearchPct" -> cursorSearchPct = value.toDoubleOrNull() ?: return invalid(key, value)
-            "cursorMinDensityFrac" -> cursorMinDensityFrac = value.toDoubleOrNull() ?: return invalid(key, value)
-            "trackEndMarginPct" -> trackEndMarginPct = value.toDoubleOrNull() ?: return invalid(key, value)
-            "roiBandPct" -> roiBandPct = value.toDoubleOrNull() ?: return invalid(key, value)
-            "roiFindMaxSpanPct" -> roiFindMaxSpanPct = value.toDoubleOrNull() ?: return invalid(key, value)
-            "barTrackLeftPct" -> barTrackLeftPct = value.toDoubleOrNull() ?: return invalid(key, value)
-            "barTrackRightPct" -> barTrackRightPct = value.toDoubleOrNull() ?: return invalid(key, value)
-            "hookedYPct" -> hookedYPct = value.toDoubleOrNull() ?: return invalid(key, value)
-            "hookedBandPct" -> hookedBandPct = value.toDoubleOrNull() ?: return invalid(key, value)
-            "resultCenterVMin" -> resultCenterVMin = value.toFloatOrNull() ?: return invalid(key, value)
-            "resultCenterFrac" -> resultCenterFrac = value.toDoubleOrNull() ?: return invalid(key, value)
-            "resultDockVMin" -> resultDockVMin = value.toFloatOrNull() ?: return invalid(key, value)
-            "autoDetectArrows" -> autoDetectArrows = value.toBooleanStrictOrNull() ?: return invalid(key, value)
-            "autoDetectCast" -> autoDetectCast = value.toBooleanStrictOrNull() ?: return invalid(key, value)
             else -> { Log.w("Config", "bot_config.txt: key tak dikenal '$key'"); return false }
         }
         return true
@@ -259,10 +186,8 @@ object Config {
         appendLine("interPulseInZoneMs = $interPulseInZoneMs")
         appendLine("tapHoldMs = $tapHoldMs")
         appendLine("deadzonePx = $deadzonePx")
-        appendLine("deadzoneZoneFrac = $deadzoneZoneFrac   # IDLE when cursor within this fraction of the zone centre")
         appendLine("marginPx = $marginPx")
         appendLine("autoStopBarMissingMs = $autoStopBarMissingMs")
-        appendLine("recastMinGapMs = $recastMinGapMs   # min gap between Cast taps while idle")
         appendLine()
         appendLine("# --- Stuck-cursor auto-stop detection ---")
         appendLine("stuckWindowMs = $stuckWindowMs")
@@ -285,34 +210,6 @@ object Config {
         appendLine("greenHMax = $greenHMax")
         appendLine("greenSMin = $greenSMin")
         appendLine("greenVMin = $greenVMin")
-        appendLine()
-        appendLine("# --- Green-zone / cursor noise rejection ---")
-        appendLine("greenRunGapPx = $greenRunGapPx        # merge green pixels into a run across gaps <= this")
-        appendLine("zoneMinPx = $zoneMinPx              # a green run narrower than this is noise")
-        appendLine("zoneMaxPct = $zoneMaxPct            # a run wider than (this * bar-track width) is noise (scenery)")
-        appendLine("zoneTrackWindowPct = $zoneTrackWindowPct    # search zone only within prev +/- (this * track width)")
-        appendLine("cursorMaxWidthPx = $cursorMaxWidthPx        # a yellow cluster wider than this is not the cursor")
-        appendLine("cursorJumpMaxPct = $cursorJumpMaxPct        # clamp: cursor can't move > (this * track width) per frame")
-        appendLine("cursorSearchPct = $cursorSearchPct        # search cursor only within green zone +/- (this * track width)")
-        appendLine("cursorMinDensityFrac = $cursorMinDensityFrac   # a yellow column filling less than this fraction of the scan band is noise")
-        appendLine("trackEndMarginPct = $trackEndMarginPct      # ignore this fraction of each track end (Stamina/Line circle rings)")
-        appendLine()
-        appendLine("# --- Fishing-bar ROI / track ---")
-        appendLine("roiBandPct = $roiBandPct           # ROI band height = this fraction of screen height")
-        appendLine("roiFindMaxSpanPct = $roiFindMaxSpanPct     # reject a candidate bar row if yellow+green span wider than this")
-        appendLine("barTrackLeftPct = $barTrackLeftPct")
-        appendLine("barTrackRightPct = $barTrackRightPct")
-        appendLine()
-        appendLine("# --- HOOKED / RESULT detection ---")
-        appendLine("hookedYPct = $hookedYPct           # centre of the 'Fish on the hook' banner (tune per game/map)")
-        appendLine("hookedBandPct = $hookedBandPct")
-        appendLine("resultCenterVMin = $resultCenterVMin")
-        appendLine("resultCenterFrac = $resultCenterFrac")
-        appendLine("resultDockVMin = $resultDockVMin")
-        appendLine()
-        appendLine("# --- Auto-calibration ---")
-        appendLine("autoDetectArrows = $autoDetectArrows")
-        appendLine("autoDetectCast = $autoDetectCast")
         appendLine()
         appendLine("# --- Button position defaults, % of screen (0.0-1.0) ---")
         appendLine("castXPct = $castXPct")
