@@ -8,10 +8,10 @@ di sebuah game. Screen capture (MediaProjection) + vision HSV → tap tombol pan
 
 ## Aturan build
 
-Aturan rilis global (AAB wajib, salin APK+AAB ke `ANDROID/apk/` dgn nama sama, build
+Aturan rilis global (AAB wajib, salin APK+AAB ke `apk/` dgn nama sama, build
 ulang tiap perubahan) ada di `/home/albayan/CLAUDE.md` bagian ANDROID/. Khusus app ini:
 
-- **Dev / uji cepat:** `./build_and_copy.sh` → APK debug ke `ANDROID/apk/`.
+- **Dev / uji cepat:** `./build_and_copy.sh` → APK debug ke `apk/`.
 - **Rilis:** `./build_release.sh` → `autoangler_<yyyymmdd>.apk` + `autoangler_<yyyymmdd>.aab`
   (skrip sudah menyalin keduanya & menyapu versi lama). Varian rooted set
   `ARTIFACT_BASE=autoangler-rooted`.

@@ -2,7 +2,7 @@
 # ============================================================
 #  AutoAngler — Build & Copy (Linux)
 #  Pengganti build_and_copy.cmd era Windows.
-#  Build APK debug lalu salin ke ANDROID/apk/ sesuai konvensi
+#  Build APK debug lalu salin ke apk/ sesuai konvensi
 #  repo (lihat ANDROID/CLAUDE.md): <namapaket>_<yyyymmdd>.apk,
 #  simpan hanya APK terbaru per app.
 # ============================================================
@@ -23,7 +23,7 @@ echo "[1/2] Build APK debug..."
 ./gradlew assembleDebug
 
 SRC="app/build/outputs/apk/debug/app-debug.apk"
-DST_DIR="../apk"
+DST_DIR="apk"
 DST="$DST_DIR/autoangler_$(date +%Y%m%d).apk"
 
 if [ ! -f "$SRC" ]; then
